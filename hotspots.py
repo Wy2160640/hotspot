@@ -80,7 +80,43 @@ def Docm():#http://www.docm.info
                 string+=item['gene']+"\t"+item['amino_acid']+"\t"+"."+"\t"+"."+"\t.\n"
                 outfile.write(string)
     outfile.close()
+def clinvar_cosmic():#添加clinvar和comic数据库中共有的位点，而且这些位点CNT>=50(出现的样本数)
+    clinvar="/data/Database/clinvar/clinvar.vcf"
+    infile=open(clinvar,"r")
+    clinvar_site={}
+    for line in infile:
+        if not line.startswith("#"):
+            line=line.strip()
+            array=line.split("\t")
+            tmp="chr"+array[0]+"_"+array[1]+"_"+array[3]+"_"+array[4]
+            if not tmp in site:
+                clinvar_site[tmp]=1
+    infile.close()
+    cosmic="/data/Database/COSMIC/release_v88/CosmicCodingMuts.vcf"
+    infile=open(cosmic,"r")
+    cosmic_clinvar,CNT,gene,trans={},{},{},{}
+    for line in infile:
+        if not line.startswith("#"):
+            line=line.strip()
+            array=line.split("\t")
+            tmp="chr"+array[0]+"_"+array[1]+"_"+array[3]+"_"+array[4]
+            p=re.compile(r'CNT=(\d+)')
+
+            if not tmp in site and tmp in clinvar_site:
+                cosmic_clinvar[tmp]="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+array[4]
+                if tmp in CNT:
+                    CNT[tmp]+=int(p.findall(line)[0])
+                else:
+                    CNT[tmp] = int(p.findall(line)[0])
+    infile.close()
+    outfile = open("hotspot.tsv", "a+")
+    for key in cosmic_clinvar:
+        if CNT[key]>=50:
+            outfile.write(cosmic_clinvar[key]+"\t.\t.\t.\t.\t.\n")
+    outfile.close()
+
 if __name__=="__main__":
     #pool.map(run, var, info)
     #civic()
-    Docm()
+    #Docm()
+    clinvar_cosmic()
