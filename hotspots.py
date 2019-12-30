@@ -1,0 +1,86 @@
+import os
+import requests
+from pathos.pools import ProcessPool
+import re
+#############################
+pool = ProcessPool(nodes=100)
+#############################################https://www.cancergenomeinterpreter.org/mutations
+cancer="catalog_of_validated_oncogenic_mutations.tsv"
+##############################################
+gdna,site={},{}
+if not os.path.exists("hotspot.tsv"):
+    outfile=open("hotspot.tsv","w")
+    outfile.write("#Chr\tPos\tRef\tAlt\tGene\tProtein\tContext\tgdna\tInfo\n")
+    outfile.close()
+else:
+    infile=open("hotspot.tsv","r")
+    for line in infile:
+        line=line.strip()
+        array=line.split("\t")
+        gdna[array[7]]=1
+        site[array[0]+"_"+array[1]+"_"+array[2]+"_"+array[3]]=1
+    infile.close()
+####################################
+infile = open(cancer, "r")
+num,var,info=0,[],[]
+for line in infile:
+    line=line.strip()
+    array=line.split("\t")
+    num+=1
+    if num!=1:
+            string=array[0]+"\t"+array[2]+"\t"+array[5]+"\t"
+            tmp=array[1].split("__")
+            for key in tmp:
+                if not key in gdna:
+                    var.append(key)
+                    info.append(string+key+"\t.")
+infile.close()
+def run(id,otherinfo):
+    server = "https://grch37.rest.ensembl.org/vep/human/hgvs/" + id
+    res = requests.get(server, headers={"Content-Type": "application/json"})
+    if not res.ok:
+        print(id)
+    else:
+        outfile = open("hotspot.tsv", "a+")
+        for item in res.json():
+            if item['allele_string']:
+                Ref = item['allele_string'].split("/")[0]
+                Alt = item['allele_string'].split("/")[1]
+                Pos = item['start']
+                Chr = item['seq_region_name']
+                outfile.write("chr%s\t%s\t%s\t%s\t%s\n" % (Chr, Pos, Ref, Alt,otherinfo))
+        outfile.close()
+def civic():
+    vcf=open("civic_variants.vcf","r")#https://civicdb.org/home
+    outfile = open("hotspot.tsv", "a+")
+    for line in vcf:
+        line=line.strip()
+        if not line.startswith("#"):
+            array=line.split("\t")
+            ALT = array[4].split("/")
+            for key in ALT:
+                tmp="chr"+array[0]+"_"+array[1]+"_"+array[3]+"_"+key
+                if not tmp in site:
+                    string="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+key+"\t"
+                    p=re.compile(r'GN=(\S+)')
+                    string+=p.findall(line.split(";")[0])[0]+"\t.\t"+line.split("|")[-2]+"\t.\t.\n"
+                    outfile.write(string)
+    vcf.close()
+    outfile.close()
+def Docm():#http://www.docm.info
+    outfile = open("hotspot.tsv", "a+")
+    chr=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,"X","Y"]
+    for key in chr:
+        html="http://www.docm.info/api/v1/variants.json?chromosomes="+str(key)
+        res = requests.get(html)
+        for item in res.json():
+            string="chr"+item['chr']+"_"+str(item['start'])+"_"+item['read']+"_"+item['variant']
+            if not string in site:
+                string = "chr" + item['chr'] + "\t" + str(item['start']) + "\t" + item['read'] + "\t" + item['variant']+"\t"
+                string+=item['gene']+"\t"+item['amino_acid']+"\t"+"."+"\t"+"."+"\t.\n"
+                outfile.write(string)
+    outfile.close()
+if __name__=="__main__":
+    #pool.map(run, var, info)
+    #civic()
+    Docm()
