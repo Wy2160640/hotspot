@@ -1,4 +1,4 @@
-#   1.civic数据库的处理
+##   1.civic数据库的处理
 ###  1.1设置环境文件
 
     下载https://civicdb.org/downloads/nightly/nightly-civicpy_cache.pkl
@@ -18,15 +18,15 @@
         w.addrecords(all_variants)
         w.writerecords()
 
-#   2.cancergenomeinterpreter 数据库对处理
+##   2.cancergenomeinterpreter 数据库对处理
 
     主要是API(https://grch37.rest.ensembl.org/vep/human/hgvs/)获得Chr/Pos/Ref/Alt的信息
 
-#   3.Docm数据库的处理
+##   3.Docm数据库的处理
 
     主要是借助该数据库自己的API，按照染色体获得所有变异位点信息
 
-#   4.去cosmic编码区与clinvar的交集，并限制变异位点在cosmic数据库的CNT>=50
+##   4.去cosmic编码区与clinvar的交集，并限制变异位点在cosmic数据库的CNT>=50
 
     这一部分主要是借助cosmic和clinvar数据库的vcf文件
 
