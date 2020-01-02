@@ -114,9 +114,29 @@ def clinvar_cosmic():#添加clinvar和comic数据库中共有的位点，而且�
         if CNT[key]>=50:
             outfile.write(cosmic_clinvar[key]+"\t.\t.\t.\t.\t.\n")
     outfile.close()
+def PharmGKB():
+    ###https://www.pharmgkb.org
+    PharmGKB_var=open("/home/fanyucai/test/hotspot/clinical_ann_metadata.tsv","r")
+    rs=[]
+    for line in PharmGKB_var:
+        line=line.strip()
+        array=line.split("\t")
+        if array[1].startswith("rs"):
+            rs.append(array[1])
+    PharmGKB_var.close()
+    ###http://www.openbioinformatics.org/annovar/download/hg19_avsnp147.txt.gz
+    dbsnp147=open("/home/fanyucai/test/hotspot/hg19_avsnp147.txt","r")
+    for line in dbsnp147:
+        line=line.strip()
+        array=line.split("\t")
+        tmp="chr"+array[0]+"_"+array[1]+"_"+array[3]+"_"+array[4]
+        if array[-1] in rs and not tmp in site:
+            print("chr"+line)
+    dbsnp147.close()
 
 if __name__=="__main__":
     #pool.map(run, var, info)
     #civic()
     #Docm()
-    clinvar_cosmic()
+    #clinvar_cosmic()
+    PharmGKB()
