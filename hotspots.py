@@ -1,9 +1,12 @@
 import os
 import requests
 from pathos.pools import ProcessPool
+from multiprocessing import Pool
 import re
+import sys,subprocess
 #############################
-pool = ProcessPool(nodes=100)
+#pool = ProcessPool(nodes=100)
+encoding = 'utf-8'
 #############################################https://www.cancergenomeinterpreter.org/mutations
 cancer="catalog_of_validated_oncogenic_mutations.tsv"
 ##############################################
@@ -18,7 +21,7 @@ else:
         line=line.strip()
         array=line.split("\t")
         gdna[array[7]]=1
-        site[array[0]+"_"+array[1]+"_"+array[2]+"_"+array[3]]=1
+        site[array[0]+"\t"+array[1]+"\t"+array[2]+"\t"+array[3]]=1
     infile.close()
 ####################################
 infile = open(cancer, "r")
@@ -59,7 +62,7 @@ def civic():
             array=line.split("\t")
             ALT = array[4].split("/")
             for key in ALT:
-                tmp="chr"+array[0]+"_"+array[1]+"_"+array[3]+"_"+key
+                tmp="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+key
                 if not tmp in site:
                     string="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+key+"\t"
                     p=re.compile(r'GN=(\S+)')
@@ -74,7 +77,7 @@ def Docm():#http://www.docm.info
         html="http://www.docm.info/api/v1/variants.json?chromosomes="+str(key)
         res = requests.get(html)
         for item in res.json():
-            string="chr"+item['chr']+"_"+str(item['start'])+"_"+item['read']+"_"+item['variant']
+            string="chr"+item['chr']+"\t"+str(item['start'])+"\t"+item['read']+"\t"+item['variant']
             if not string in site:
                 string = "chr" + item['chr'] + "\t" + str(item['start']) + "\t" + item['read'] + "\t" + item['variant']+"\t"
                 string+=item['gene']+"\t"+item['amino_acid']+"\t"+"."+"\t"+"."+"\t.\n"
@@ -88,7 +91,7 @@ def clinvar_cosmic():#添加clinvar和comic数据库中共有的位点，而且�
         if not line.startswith("#"):
             line=line.strip()
             array=line.split("\t")
-            tmp="chr"+array[0]+"_"+array[1]+"_"+array[3]+"_"+array[4]
+            tmp="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+array[4]
             if not tmp in site:
                 clinvar_site[tmp]=1
     infile.close()
@@ -99,7 +102,7 @@ def clinvar_cosmic():#添加clinvar和comic数据库中共有的位点，而且�
         if not line.startswith("#"):
             line=line.strip()
             array=line.split("\t")
-            tmp="chr"+array[0]+"_"+array[1]+"_"+array[3]+"_"+array[4]
+            tmp="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+array[4]
             p=re.compile(r'CNT=(\d+)')
 
             if not tmp in site and tmp in clinvar_site:
@@ -117,22 +120,30 @@ def clinvar_cosmic():#添加clinvar和comic数据库中共有的位点，而且�
 def PharmGKB():
     ###https://www.pharmgkb.org
     PharmGKB_var=open("/home/fanyucai/test/hotspot/clinical_ann_metadata.tsv","r")
-    rs=[]
+    rs=open("rsID.txt","w")
     for line in PharmGKB_var:
         line=line.strip()
         array=line.split("\t")
         if array[1].startswith("rs"):
-            rs.append(array[1])
+            rs.write("%s\n"%array[1])
+    rs.close()
     PharmGKB_var.close()
+    dbsnp={}
+    def line_process(line):
+        line = line.strip()
+        array = line.split("\t")
+        tmp = "chr" + array[0] + "\t" + array[1] + "\t" + array[3] + "\t" + array[4]
+        if array[-1] in rs and not tmp in site:
+            dbsnp[array[-1]] = "chr" + array[0] + "\t" + array[1] + "\t" + array[3] + "\t" + array[4]
+            print(dbsnp)
+    #cmd="/software/vcftools/vcftools/bin/vcftools --snps rsID.txt --recode --recode-INFO-all"
+    #cmd+=" --gzvcf /data/Database/hg19/dbsnp/human_9606_b151_GRCh37p13/00-All.vcf --out result.txt"
+    #subprocess.check_call(cmd,shell=True)
     ###http://www.openbioinformatics.org/annovar/download/hg19_avsnp147.txt.gz
     dbsnp147=open("/home/fanyucai/test/hotspot/hg19_avsnp147.txt","r")
-    for line in dbsnp147:
-        line=line.strip()
-        array=line.split("\t")
-        tmp="chr"+array[0]+"_"+array[1]+"_"+array[3]+"_"+array[4]
-        if array[-1] in rs and not tmp in site:
-            print("chr"+line)
-    dbsnp147.close()
+    lines=dbsnp147.readlines()
+    p = Pool(500)
+    p.map(line_process(),lines)
 
 if __name__=="__main__":
     #pool.map(run, var, info)
