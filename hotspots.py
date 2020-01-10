@@ -141,11 +141,18 @@ def PharmGKB():
                 if not tmp in site:
                    outfile.write(tmp+"\t.\t.\t.\t.\t.\n")
         outfile.close()
-
-
+def filter_germline():
+    outfile = open("hotspot.somatic.tsv", "w")
+    with open("hotspot.tsv","r") as f:
+        for line in f:
+            line = line.strip()
+            if not re.search('germline', line) and not re.search('Germline', line):
+                outfile.write("%s\n"%line)
+    outfile.close()
 if __name__=="__main__":
     #pool.map(run, var, info)
     #civic()
     #Docm()
     #clinvar_cosmic()
-    PharmGKB()
+    #PharmGKB()
+    filter_germline()
