@@ -104,7 +104,6 @@ def clinvar_cosmic():#添加clinvar和comic数据库中共有的位点，而且�
             array=line.split("\t")
             tmp="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+array[4]
             p=re.compile(r'CNT=(\d+)')
-
             if not tmp in site and tmp in clinvar_site:
                 cosmic_clinvar[tmp]="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+array[4]
                 if tmp in CNT:
@@ -128,22 +127,21 @@ def PharmGKB():
             rs.write("%s\n"%array[1])
     rs.close()
     PharmGKB_var.close()
-    dbsnp={}
-    def line_process(line):
-        line = line.strip()
-        array = line.split("\t")
-        tmp = "chr" + array[0] + "\t" + array[1] + "\t" + array[3] + "\t" + array[4]
-        if array[-1] in rs and not tmp in site:
-            dbsnp[array[-1]] = "chr" + array[0] + "\t" + array[1] + "\t" + array[3] + "\t" + array[4]
-            print(dbsnp)
-    #cmd="/software/vcftools/vcftools/bin/vcftools --snps rsID.txt --recode --recode-INFO-all"
-    #cmd+=" --gzvcf /data/Database/hg19/dbsnp/human_9606_b151_GRCh37p13/00-All.vcf --out result.txt"
-    #subprocess.check_call(cmd,shell=True)
-    ###http://www.openbioinformatics.org/annovar/download/hg19_avsnp147.txt.gz
-    dbsnp147=open("/home/fanyucai/test/hotspot/hg19_avsnp147.txt","r")
-    lines=dbsnp147.readlines()
-    p = Pool(500)
-    p.map(line_process(),lines)
+    if not os.path.exists("output.avinput"):
+        cmd="/software/perl/perl-v5.28.1/bin/perl /software/docker_tumor_base/Resource/Annovar/convert2annovar.pl"
+        cmd+=" --format rsid rsID.txt --avsnpfile /software/docker_tumor_base/Resource/Annovar/humandb/hg19_avsnp147.txt >output.avinput"
+        subprocess.check_call(cmd,shell=True)
+    else:
+        outfile = open("hotspot.tsv", "a+")
+        with open('output.avinput','r') as f:
+            for line in f:
+                line=line.strip()
+                array=line.split("\t")
+                tmp="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+array[4]
+                if not tmp in site:
+                   outfile.write(tmp+"\t.\t.\t.\t.\t.\n")
+        outfile.close()
+
 
 if __name__=="__main__":
     #pool.map(run, var, info)
