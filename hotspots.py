@@ -1,11 +1,9 @@
 import os
 import requests
 from pathos.pools import ProcessPool
-from multiprocessing import Pool
 import re
-import sys,subprocess
+import subprocess
 #############################
-#pool = ProcessPool(nodes=100)
 encoding = 'utf-8'
 #############################################https://www.cancergenomeinterpreter.org/mutations
 cancer="catalog_of_validated_oncogenic_mutations.tsv"
@@ -30,7 +28,7 @@ for line in infile:
     line=line.strip()
     array=line.split("\t")
     num+=1
-    if num!=1:
+    if num!=1 and re.search('somatic',line):
             string=array[0]+"\t"+array[2]+"\t"+array[5]+"\t"
             tmp=array[1].split("__")
             for key in tmp:
@@ -58,7 +56,7 @@ def civic():
     outfile = open("hotspot.tsv", "a+")
     for line in vcf:
         line=line.strip()
-        if not line.startswith("#"):
+        if not line.startswith("#") and re.search('Germline',line,re.I):
             array=line.split("\t")
             ALT = array[4].split("/")
             for key in ALT:
@@ -70,7 +68,7 @@ def civic():
                     outfile.write(string)
     vcf.close()
     outfile.close()
-def Docm():#http://www.docm.info
+def Docm():#http://www.docm.info,Curation of the literature to produce a high quality set of pathogenic somatic mutations is not trival.
     outfile = open("hotspot.tsv", "a+")
     chr=[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,"X","Y"]
     for key in chr:
@@ -99,7 +97,7 @@ def clinvar_cosmic():#添加clinvar和comic数据库中共有的位点，而且�
     infile=open(cosmic,"r")
     cosmic_clinvar,CNT,gene,trans={},{},{},{}
     for line in infile:
-        if not line.startswith("#"):
+        if not line.startswith("#") and not re.search('SNP',line):
             line=line.strip()
             array=line.split("\t")
             tmp="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+array[4]
@@ -131,28 +129,71 @@ def PharmGKB():
         cmd="/software/perl/perl-v5.28.1/bin/perl /software/docker_tumor_base/Resource/Annovar/convert2annovar.pl"
         cmd+=" --format rsid rsID.txt --avsnpfile /software/docker_tumor_base/Resource/Annovar/humandb/hg19_avsnp147.txt >output.avinput"
         subprocess.check_call(cmd,shell=True)
+    elif not os.path.exists("PharmGKB.hg19_multianno.txt"):
+        par = " -protocol refGene,cytoBand,exac03,esp6500siv2_all,1000g2015aug_all,1000g2015aug_eas,gnomad211_exome,gnomad211_genome,cosmic88_coding,clinvar_20190305,ljb26_all,intervar_20180118"
+        par += ",1000g2015aug_sas,1000g2015aug_afr,1000g2015aug_amr,1000g2015aug_eur "
+        par += " -operation g,r,f,f,f,f,f,f,f,f,f,f,f,f,f,f "
+        par += " -nastring . -polish "
+        subprocess.check_call(
+            "/software/perl/perl-v5.28.1/bin/perl /software/docker_tumor_base/Resource/Annovar/table_annovar.pl output.avinput /software/docker_tumor_base/Resource/Annovar/humandb -buildver hg19 -out PharmGKB -remove %s " % (
+                par), shell=True)
     else:
+        #################
+        cnt = {}
+        file1 = open("/data/Database/COSMIC/release_v88/CosmicCodingMuts.vcf", "r")
+        for line in file1:
+            if not line.startswith("#"):
+                line = line.strip()
+                array = line.split()
+                pattern = re.compile(r'CNT=(\d+)')
+                a = pattern.findall(line)
+                cnt[array[2]] = int(a[0])
+        file1.close()
+        ##########################
+        infile=open("PharmGKB.hg19_multianno.txt","r")
         outfile = open("hotspot.tsv", "a+")
-        with open('output.avinput','r') as f:
-            for line in f:
-                line=line.strip()
-                array=line.split("\t")
-                tmp="chr"+array[0]+"\t"+array[1]+"\t"+array[3]+"\t"+array[4]
-                if not tmp in site:
-                   outfile.write(tmp+"\t.\t.\t.\t.\t.\n")
-        outfile.close()
-def filter_germline():
-    outfile = open("hotspot.somatic.tsv", "w")
-    with open("hotspot.tsv","r") as f:
-        for line in f:
+        database = ['1000g2015aug_all', '1000g2015aug_eas', 'ExAC_ALL', 'esp6500siv2_all', 'ExAC_EAS','genome_AF','exome_AF','exome_AF_eas','genome_AF_eas']
+        dict = {}
+        for line in infile:
             line = line.strip()
-            if not re.search('germline', line) and not re.search('Germline', line):
-                outfile.write("%s\n"%line)
-    outfile.close()
+            array = line.split("\t")
+            name = []
+            if line.startswith("Chr"):
+                for i in range(len(array)):
+                    name.append(array[i])
+                    dict[array[i]] = i
+            else:
+                freq = 0
+                freq_counts = 0
+                result = ""
+                dot = 0
+                for i in database:
+                    if array[dict[i]] == ".":
+                        dot += 1
+                    elif array[dict[i]] != "." and float(array[dict[i]]) <= 0.01:
+                        freq += 1
+                    else:
+                        freq_counts += 1
+                if freq_counts==0:  # not common snp
+                    if array[dict['CLNSIG']].startswith("Pathogenic") or array[dict['CLNSIG']].startswith(
+                            "Likely_pathogenic") or array[dict['CLNSIG']].startswith("drug_response"):
+                        result = "true"
+                    if array[dict['InterVar_automated']].startswith("Pathogenic") or array[
+                        dict['InterVar_automated']].startswith("Likely pathogenic"):
+                        result = "true"
+                    if freq >= 1:  # at least 1<MAF
+                        result = "true"
+                    if dot == len(database):
+                        result = "true"
+                if result == "true":
+                    tmp = "chr" + array[0] + "\t" + array[1] + "\t" + array[3] + "\t" + array[4]
+                    if not tmp in site:
+                        outfile.write(tmp+"\t%s\t.\t.\t.\t.\n"%(array[6]))
+        outfile.close()
 if __name__=="__main__":
-    #pool.map(run, var, info)
-    #civic()
-    #Docm()
-    #clinvar_cosmic()
-    #PharmGKB()
-    filter_germline()
+    pool = ProcessPool(nodes=100)
+    pool.map(run, var, info)
+    civic()
+    Docm()
+    clinvar_cosmic()
+    PharmGKB()
